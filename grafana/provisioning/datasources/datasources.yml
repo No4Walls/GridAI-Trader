@@ -1,0 +1,24 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+  - name: GridAI-DB
+    type: postgres
+    access: proxy
+    url: db:5432
+    user: gridai
+    secureJsonData:
+      password: gridai
+    jsonData:
+      database: gridai
+      sslmode: disable
+      postgresVersion: 1400
+      timescaledb: true
