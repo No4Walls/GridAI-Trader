@@ -33,8 +33,12 @@ class OrderManager:
         max_retries: int = 5,
         retry_backoff: float = 2.0,
         rate_limit_per_second: float = 5.0,
+        place_buy_order_fn: Optional[Callable[[float, float], Dict[str, Any]]] = None,
+        place_sell_order_fn: Optional[Callable[[float, float], Dict[str, Any]]] = None,
     ) -> None:
         self._place_order_fn = place_order_fn
+        self._place_buy_order_fn = place_buy_order_fn
+        self._place_sell_order_fn = place_sell_order_fn
         self._cancel_order_fn = cancel_order_fn
         self._fetch_order_fn = fetch_order_fn
         self._fetch_open_orders_fn = fetch_open_orders_fn
@@ -114,13 +118,15 @@ class OrderManager:
             )
             return record
 
-        if self._place_order_fn is None:
-            raise RuntimeError("No place_order function configured")
-
+        # Choose the correct order placement function
+        fn: Optional[Callable[..., Dict[str, Any]]]
         if side == "buy":
-            result = self._retry_call(self._place_order_fn, amount, price)
+            fn = self._place_buy_order_fn or self._place_order_fn
         else:
-            result = self._retry_call(self._place_order_fn, amount, price)
+            fn = self._place_sell_order_fn or self._place_order_fn
+        if fn is None:
+            raise RuntimeError("No place_order function configured for side %s" % side)
+        result = self._retry_call(fn, amount, price)
 
         order_id = result["id"]
         record = OrderRecord(

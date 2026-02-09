@@ -162,7 +162,8 @@ class GridAITrader:
                 )
             else:
                 self._order_mgr = OrderManager(
-                    place_order_fn=None,
+                    place_buy_order_fn=self._feed.create_limit_buy,
+                    place_sell_order_fn=self._feed.create_limit_sell,
                     cancel_order_fn=self._feed.cancel_order,
                     fetch_order_fn=self._feed.fetch_order,
                     fetch_open_orders_fn=self._feed.fetch_open_orders,
