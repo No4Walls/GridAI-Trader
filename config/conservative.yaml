@@ -1,0 +1,23 @@
+grid:
+  num_grids: 10
+  upper_bound_pct: 2.0
+  lower_bound_pct: 2.0
+  order_size_usdt: 30.0
+  max_open_orders: 20
+
+ai:
+  confidence_threshold: 0.7
+  regime_grid_multiplier:
+    LOW: 0.5
+    MEDIUM: 0.8
+    HIGH: 1.2
+
+risk:
+  max_drawdown_pct: 10.0
+  max_capital_deployed_pct: 30.0
+  daily_loss_cap_usdt: 300.0
+  emergency_stop_loss_pct: 7.0
+  max_orders_per_day: 100
+
+paper:
+  initial_capital_usdt: 5000.0

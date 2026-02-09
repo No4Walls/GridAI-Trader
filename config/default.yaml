@@ -1,0 +1,70 @@
+exchange:
+  name: coinbase
+  trading_pair: BTC/USDT
+  sandbox: false
+
+grid:
+  num_grids: 15
+  upper_bound_pct: 3.0
+  lower_bound_pct: 3.0
+  order_size_usdt: 50.0
+  recalibration_interval_minutes: 60
+  max_open_orders: 30
+
+ai:
+  volatility_model_path: models/volatility_model.joblib
+  prediction_interval_minutes: 60
+  confidence_threshold: 0.6
+  regime_grid_multiplier:
+    LOW: 0.7
+    MEDIUM: 1.0
+    HIGH: 1.5
+
+trend:
+  ma_fast: 20
+  ma_slow: 50
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+  adx_period: 14
+  adx_strong_trend: 25
+  pause_on_strong_trend: true
+
+risk:
+  max_drawdown_pct: 15.0
+  max_capital_deployed_pct: 50.0
+  daily_loss_cap_usdt: 500.0
+  emergency_stop_loss_pct: 10.0
+  max_orders_per_day: 200
+  max_fee_pct: 0.5
+  slippage_tolerance_pct: 0.1
+
+backtesting:
+  start_date: "2024-01-01"
+  end_date: "2026-01-01"
+  initial_capital_usdt: 10000.0
+  fee_pct: 0.1
+  slippage_pct: 0.05
+
+paper:
+  initial_capital_usdt: 10000.0
+  fee_pct: 0.1
+
+live:
+  poll_interval_seconds: 10
+  reconciliation_interval_seconds: 60
+  retry_max_attempts: 5
+  retry_backoff_seconds: 2
+  rate_limit_calls_per_second: 5
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8080
+  update_interval_seconds: 2
+
+logging:
+  level: INFO
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+database:
+  path: state/gridai.db

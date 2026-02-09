@@ -1,0 +1,110 @@
+services:
+  bot:
+    build: .
+    container_name: gridai-bot
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - gridai_state:/app/state
+      - gridai_models:/app/models
+      - gridai_db:/app/state
+      - gridai_logs:/app/logs
+    networks:
+      - gridai_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/state/gridai.db') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    profiles:
+      - paper
+      - live
+
+  bot-paper:
+    extends:
+      service: bot
+    container_name: gridai-paper
+    command: ["python", "main.py", "--mode", "paper"]
+    profiles:
+      - paper
+
+  bot-live:
+    extends:
+      service: bot
+    container_name: gridai-live
+    command: ["python", "main.py", "--mode", "live"]
+    profiles:
+      - live
+
+  dashboard:
+    build: .
+    container_name: gridai-dashboard
+    command: ["python", "scripts/run_dashboard.py"]
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8080:8080"
+    volumes:
+      - gridai_state:/app/state
+      - gridai_db:/app/state
+    networks:
+      - gridai_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - dashboard
+
+  backtester:
+    build: .
+    container_name: gridai-backtester
+    command: ["python", "scripts/run_backtest.py"]
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - gridai_state:/app/state
+      - gridai_models:/app/models
+      - gridai_db:/app/state
+    networks:
+      - gridai_net
+    profiles:
+      - backtest
+
+  trainer:
+    build: .
+    container_name: gridai-trainer
+    command: ["python", "scripts/train_model.py"]
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - gridai_state:/app/state
+      - gridai_models:/app/models
+    networks:
+      - gridai_net
+    profiles:
+      - training
+
+volumes:
+  gridai_state:
+    name: gridai_state
+  gridai_models:
+    name: gridai_models
+  gridai_db:
+    name: gridai_db
+  gridai_logs:
+    name: gridai_logs
+
+networks:
+  gridai_net:
+    name: gridai_net
+    driver: bridge
