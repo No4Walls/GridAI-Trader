@@ -1,0 +1,42 @@
+groups:
+  - name: gridai-alerts
+    rules:
+      - alert: ExchangeDisconnected
+        expr: exchange_connected == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Exchange disconnected for >2m"
+
+      - alert: HighDrawdown
+        expr: drawdown_pct > 15
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Drawdown exceeds threshold"
+
+      - alert: TrendPauseLong
+        expr: trend_pause == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bot paused due to trend for >10m"
+
+      - alert: FailedOrdersLastHour
+        expr: failed_orders_count_1h > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "One or more order failures in the last hour"
+
+      - alert: StaleTicks
+        expr: last_tick_age_seconds > 30
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No fresh tick in >30s"

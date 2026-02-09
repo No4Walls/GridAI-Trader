@@ -1,0 +1,65 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "name": "Trade Events",
+        "type": "dashboard",
+        "datasource": {"type": "postgres", "uid": "GridAI-DB"},
+        "enable": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "query": "SELECT ts AS time, CASE WHEN side='buy' THEN 'BUY' ELSE 'SELL' END AS text, CONCAT('price=', price, ', qty=', qty) AS tags FROM trade_events WHERE $__timeFilter(ts)"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "type": "marcusolsson-candlestick-panel",
+      "title": "BTCUSDT Candles",
+      "datasource": {"type": "postgres", "uid": "GridAI-DB"},
+      "gridPos": {"h": 18, "w": 24, "x": 0, "y": 0},
+      "options": {
+        "timeField": "time",
+        "openField": "open",
+        "highField": "high",
+        "lowField": "low",
+        "closeField": "close"
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "refId": "A",
+          "sql": "SELECT ts as time, open, high, low, close FROM candles WHERE timeframe = '5m' AND $__timeFilter(ts) ORDER BY ts"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Volatility Confidence",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [{"refId": "B", "expr": "volatility_confidence"}]
+    },
+    {
+      "type": "stat",
+      "title": "Regime",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [{"refId": "C", "expr": "max by (regime) (volatility_regime)"}]
+    },
+    {
+      "type": "stat",
+      "title": "Trend State",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [{"refId": "D", "expr": "max by (state) (trend_state)"}]
+    }
+  ],
+  "schemaVersion": 38,
+  "tags": ["gridai", "btc"],
+  "title": "BTC Live Trading",
+  "version": 1
+}

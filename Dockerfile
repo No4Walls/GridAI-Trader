@@ -20,6 +20,7 @@ COPY backtesting/ backtesting/
 COPY dashboard/ dashboard/
 COPY config/ config/
 COPY scripts/ scripts/
+COPY observability/ observability/
 COPY main.py .
 
 RUN mkdir -p state models logs && chown -R gridai:gridai /app
@@ -30,6 +31,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
 
-EXPOSE 8080
+EXPOSE 8080 9000
 
 CMD ["python", "main.py", "--mode", "paper"]

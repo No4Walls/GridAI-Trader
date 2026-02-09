@@ -46,11 +46,13 @@ docker compose --profile backtest up --build
 docker compose --profile paper up --build
 ```
 
-### 5. Start the dashboard
+### 5. Start the Grafana observability stack
 
 ```bash
-docker compose --profile dashboard up --build -d
-# Open http://localhost:8080
+docker compose up --build
+# Open Grafana at http://localhost:3000 (default admin / admin)
+# Open Prometheus at http://localhost:9090
+# Optional legacy dashboard at http://localhost:8080
 ```
 
 ### 6. Run live trading (REAL MONEY)
@@ -59,6 +61,17 @@ docker compose --profile dashboard up --build -d
 # Ensure .env has valid COINBASE_API_KEY and COINBASE_API_SECRET
 docker compose --profile live up --build
 ```
+
+## Observability
+
+- Prometheus scrapes the bot at http://bot:9000/metrics for runtime metrics (mode, connectivity, PnL, risk, grid, indicators)
+- Loki collects structured JSON logs from the bot via a shared volume; Promtail ships them to Loki
+- TimescaleDB stores candles, indicators, and trade_events for chart annotations
+- Grafana is fully provisioned at startup with:
+  - Datasources: Prometheus, Loki, GridAI-DB (TimescaleDB)
+  - Dashboards: "BTC Live Trading" and "Trading Ops"
+
+Default credentials: admin / admin (change via GF_SECURITY_ADMIN_PASSWORD env)
 
 ## Makefile Commands
 

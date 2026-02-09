@@ -1,10 +1,91 @@
 services:
+  db:
+    image: timescale/timescaledb:2.11.2-pg14
+    container_name: gridai-db
+    environment:
+      - POSTGRES_USER=gridai
+      - POSTGRES_PASSWORD=gridai
+      - POSTGRES_DB=gridai
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    networks: [gridai_net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gridai -d gridai"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gridai-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [gridai_net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: gridai-loki
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    networks: [gridai_net]
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: gridai-promtail
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - gridai_logs:/var/log/gridai:ro
+    networks: [gridai_net]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: gridai-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=marcusolsson-candlestick-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks: [gridai_net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
   bot:
     build: .
     container_name: gridai-bot
     env_file: .env
     environment:
       - PYTHONUNBUFFERED=1
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=gridai
+      - PGPASSWORD=gridai
+      - PGDATABASE=gridai
     volumes:
       - gridai_state:/app/state
       - gridai_models:/app/models
@@ -13,6 +94,9 @@ services:
     networks:
       - gridai_net
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/state/gridai.db') else 1)"]
       interval: 30s
@@ -103,6 +187,14 @@ volumes:
     name: gridai_db
   gridai_logs:
     name: gridai_logs
+  grafana_data:
+    name: gridai_grafana
+  prometheus_data:
+    name: gridai_prom
+  loki_data:
+    name: gridai_loki
+  pg_data:
+    name: gridai_pg
 
 networks:
   gridai_net:
