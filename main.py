@@ -177,6 +177,7 @@ class GridAITrader:
         self._last_regime_check: float = 0
         self._last_trend_check: float = 0
         self._candle_buffer: list = []
+        self._counter_pairs: Dict[str, Dict[str, Any]] = {}
 
     def _setup_logging(self) -> None:
         class JsonFormatter(logging.Formatter):
@@ -206,12 +207,6 @@ class GridAITrader:
             root.addHandler(fh)
         except Exception:
             pass
-
-    def _setup_live_order_fns(self) -> None:
-        if self._feed is None or self._order_mgr is None:
-            return
-        if self._mode == "live":
-            self._order_mgr._place_order_fn = None
 
     def get_state(self) -> Dict[str, Any]:
         return {
@@ -400,10 +395,11 @@ class GridAITrader:
             self._position.save_state()
             return
 
-        if self._grid.state is None or self._grid.should_recalibrate(price):
-            self._order_mgr.cancel_all_open()
+        if self._grid.state is None:
             self._grid.calculate_grid(price)
             self._place_grid_orders(price)
+        elif self._grid.should_recalibrate(price):
+            self._incremental_recalibrate(price)
 
         if tick_count % 6 == 0:
             try:
@@ -423,6 +419,25 @@ class GridAITrader:
         self._position.snapshot_equity(price)
         self._position.save_state()
 
+    def _incremental_recalibrate(self, current_price: float) -> None:
+        if self._order_mgr is None:
+            return
+        old_state = self._grid.state
+        new_state = self._grid.calculate_grid(current_price)
+        if old_state is not None:
+            for level in old_state.levels:
+                if level.is_active and level.order_id:
+                    if level.price < new_state.lower_bound or level.price > new_state.upper_bound:
+                        self._order_mgr.cancel_order(level.order_id)
+                        self._grid.mark_order_cancelled(level.order_id)
+                    else:
+                        for nl in new_state.levels:
+                            if abs(nl.price - level.price) < new_state.spacing * 0.1:
+                                nl.order_id = level.order_id
+                                nl.is_active = True
+                                break
+        self._place_grid_orders(current_price)
+
     def _place_grid_orders(self, current_price: float) -> None:
         if self._order_mgr is None:
             return
@@ -439,8 +454,6 @@ class GridAITrader:
                     grid_index=level.index,
                 )
                 self._grid.mark_order_placed(level.index, record.order_id)
-                if level.side == GridSide.BUY:
-                    pass
             except Exception:
                 self._failed_order_ts.append(time.time())
                 logger.exception("Failed to place order at grid %d", level.index)
@@ -453,10 +466,22 @@ class GridAITrader:
             return
 
         filled_level = self._grid.mark_order_filled(order_id)
-        fee = record.price * record.amount * 0.001
+        fee_pct = (self._config.get("paper", "fee_pct") or 0.1) / 100.0
+        fee = record.fee if record.fee > 0 else record.price * record.amount * fee_pct
+
+        pair_info = self._counter_pairs.pop(order_id, None)
 
         if record.side == "buy":
             self._position.record_buy(record.price, record.amount, fee)
+            if pair_info:
+                self._position.record_completed_trade(
+                    buy_order_id=order_id,
+                    sell_order_id=pair_info["source_order_id"],
+                    buy_price=record.price,
+                    sell_price=pair_info["source_price"],
+                    amount=record.amount,
+                    fee=fee + pair_info["source_fee"],
+                )
             counter = self._grid.get_counter_order(filled_level) if filled_level else None
             if counter and self._risk.can_place_order():
                 try:
@@ -466,19 +491,42 @@ class GridAITrader:
                         amount=counter["amount"],
                         grid_index=counter["source_index"],
                     )
+                    self._counter_pairs[c_record.order_id] = {
+                        "source_order_id": order_id,
+                        "source_price": record.price,
+                        "source_fee": fee,
+                    }
                     logger.info("Counter order placed: %s", c_record.order_id)
                 except Exception:
                     logger.exception("Failed to place counter order")
         else:
             self._position.record_sell(record.price, record.amount, fee)
-            self._position.record_completed_trade(
-                buy_order_id="",
-                sell_order_id=order_id,
-                buy_price=record.price - (self._grid.state.spacing if self._grid.state else 0),
-                sell_price=record.price,
-                amount=record.amount,
-                fee=fee,
-            )
+            if pair_info:
+                self._position.record_completed_trade(
+                    buy_order_id=pair_info["source_order_id"],
+                    sell_order_id=order_id,
+                    buy_price=pair_info["source_price"],
+                    sell_price=record.price,
+                    amount=record.amount,
+                    fee=fee + pair_info["source_fee"],
+                )
+            counter = self._grid.get_counter_order(filled_level) if filled_level else None
+            if counter and self._risk.can_place_order():
+                try:
+                    c_record = self._order_mgr.place_order(
+                        side=counter["side"],
+                        price=counter["price"],
+                        amount=counter["amount"],
+                        grid_index=counter["source_index"],
+                    )
+                    self._counter_pairs[c_record.order_id] = {
+                        "source_order_id": order_id,
+                        "source_price": record.price,
+                        "source_fee": fee,
+                    }
+                    logger.info("Counter order placed: %s", c_record.order_id)
+                except Exception:
+                    logger.exception("Failed to place counter order")
         # Trade event to DB
         try:
             if insert_trade_event:
@@ -504,8 +552,9 @@ class GridAITrader:
 
     def _shutdown(self) -> None:
         logger.info("Shutting down GridAI Trader...")
-        if self._order_mgr and self._mode == "paper":
-            self._order_mgr.cancel_all_open()
+        if self._order_mgr:
+            cancelled = self._order_mgr.cancel_all_open()
+            logger.info("Cancelled %d open orders on shutdown", cancelled)
         if self._feed:
             self._feed.stop_polling()
         self._position.save_state()
