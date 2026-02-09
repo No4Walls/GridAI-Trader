@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument("--end-date", default="2026-01-01")
     parser.add_argument("--timeframe", default="5m")
     parser.add_argument("--output", default="models/volatility_model.joblib")
+    parser.add_argument("--resume", action="store_true", help="Resume interrupted fetch from partial cache")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -32,6 +33,9 @@ def main() -> None:
     )
 
     config = ConfigManager(config_dir=args.config_dir, profile=args.profile)
+
+    cache_path = "state/training_data.csv"
+    Path("state").mkdir(parents=True, exist_ok=True)
 
     if args.data_file and Path(args.data_file).exists():
         logger.info("Loading data from %s", args.data_file)
@@ -44,15 +48,15 @@ def main() -> None:
             exchange_id=exchange_cfg.get("name", "coinbase"),
             trading_pair=exchange_cfg.get("trading_pair", "BTC/USDT"),
         )
+        resume_path = cache_path if args.resume else None
         df = loader.fetch_ohlcv(
             timeframe=args.timeframe,
             start_date=args.start_date,
             end_date=args.end_date,
+            resume_path=resume_path,
         )
-        cache_path = "state/training_data.csv"
-        Path("state").mkdir(parents=True, exist_ok=True)
         loader.save_to_csv(df, cache_path)
-        logger.info("Data cached to %s", cache_path)
+        logger.info("Data cached to %s (%d rows)", cache_path, len(df))
 
     logger.info("Training data: %d rows", len(df))
 
