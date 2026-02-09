@@ -89,7 +89,6 @@ class GridAITrader:
                 trading_pair=exchange_cfg.get("trading_pair", "BTC/USDT"),
                 api_key=os.environ.get("COINBASE_API_KEY", ""),
                 api_secret=os.environ.get("COINBASE_API_SECRET", ""),
-                passphrase=os.environ.get("COINBASE_PASSPHRASE", ""),
                 sandbox=exchange_cfg.get("sandbox", False),
             )
 

@@ -15,7 +15,6 @@ class RealtimeFeed:
         trading_pair: str = "BTC/USDT",
         api_key: str = "",
         api_secret: str = "",
-        passphrase: str = "",
         sandbox: bool = False,
     ) -> None:
         config: Dict[str, Any] = {"enableRateLimit": True}
@@ -23,8 +22,6 @@ class RealtimeFeed:
             config["apiKey"] = api_key
         if api_secret:
             config["secret"] = api_secret
-        if passphrase:
-            config["password"] = passphrase
         if sandbox:
             config["sandbox"] = True
 
